@@ -66,6 +66,8 @@
 
 // @section machine
 
+#define MOTHERBOARD BOARD_BTT_MANTA_M8P_V2_0
+
 // Choose the name from boards.h that matches your setup
 #ifndef MOTHERBOARD
   #define MOTHERBOARD BOARD_RAMPS_14_EFB
@@ -81,7 +83,7 @@
  *
  * :[-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
  */
-#define SERIAL_PORT 0
+#define SERIAL_PORT -1  // USB CDC virtual COM port (USB-C connector)
 
 /**
  * Serial Port Baud Rate
@@ -94,7 +96,7 @@
  *
  * :[2400, 9600, 19200, 38400, 57600, 115200, 250000, 500000, 1000000]
  */
-#define BAUDRATE 250000
+#define BAUDRATE 115200
 
 //#define BAUD_RATE_GCODE     // Enable G-code M575 to set the baud rate
 
@@ -103,7 +105,7 @@
  * Currently Ethernet (-2) is only supported on Teensy 4.1 boards.
  * :[-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
  */
-//#define SERIAL_PORT_2 -1
+//#define SERIAL_PORT_2 0
 //#define BAUDRATE_2 250000   // :[2400, 9600, 19200, 38400, 57600, 115200, 250000, 500000, 1000000] Enable to override BAUDRATE
 
 /**
@@ -152,21 +154,21 @@
  *          TMC5130, TMC5130_STANDALONE, TMC5160, TMC5160_STANDALONE
  * :['A4988', 'A5984', 'DRV8825', 'LV8729', 'TB6560', 'TB6600', 'TMC2100', 'TMC2130', 'TMC2130_STANDALONE', 'TMC2160', 'TMC2160_STANDALONE', 'TMC2208', 'TMC2208_STANDALONE', 'TMC2209', 'TMC2209_STANDALONE', 'TMC2240', 'TMC2660', 'TMC2660_STANDALONE', 'TMC5130', 'TMC5130_STANDALONE', 'TMC5160', 'TMC5160_STANDALONE']
  */
-#define X_DRIVER_TYPE  A4988
-#define Y_DRIVER_TYPE  A4988
-#define Z_DRIVER_TYPE  A4988
+#define X_DRIVER_TYPE  TMC2209
+#define Y_DRIVER_TYPE  TMC2209
+#define Z_DRIVER_TYPE  TMC2209
 //#define X2_DRIVER_TYPE A4988
 //#define Y2_DRIVER_TYPE A4988
 //#define Z2_DRIVER_TYPE A4988
 //#define Z3_DRIVER_TYPE A4988
 //#define Z4_DRIVER_TYPE A4988
-//#define I_DRIVER_TYPE  A4988
-//#define J_DRIVER_TYPE  A4988
-//#define K_DRIVER_TYPE  A4988
-//#define U_DRIVER_TYPE  A4988
-//#define V_DRIVER_TYPE  A4988
+#define I_DRIVER_TYPE  TMC2209
+#define J_DRIVER_TYPE  TMC2209
+#define K_DRIVER_TYPE  TMC2209
+#define U_DRIVER_TYPE  TMC2209
+#define V_DRIVER_TYPE  TMC2209
 //#define W_DRIVER_TYPE  A4988
-#define E0_DRIVER_TYPE A4988
+//#define E0_DRIVER_TYPE A4988
 //#define E1_DRIVER_TYPE A4988
 //#define E2_DRIVER_TYPE A4988
 //#define E3_DRIVER_TYPE A4988
@@ -194,15 +196,15 @@
  */
 #ifdef I_DRIVER_TYPE
   #define AXIS4_NAME 'A' // :['A', 'B', 'C', 'U', 'V', 'W']
-  #define AXIS4_ROTATES
+  //#define AXIS4_ROTATES
 #endif
 #ifdef J_DRIVER_TYPE
   #define AXIS5_NAME 'B' // :['B', 'C', 'U', 'V', 'W']
-  #define AXIS5_ROTATES
+  //#define AXIS5_ROTATES
 #endif
 #ifdef K_DRIVER_TYPE
   #define AXIS6_NAME 'C' // :['C', 'U', 'V', 'W']
-  #define AXIS6_ROTATES
+  //#define AXIS6_ROTATES
 #endif
 #ifdef U_DRIVER_TYPE
   #define AXIS7_NAME 'U' // :['U', 'V', 'W']
@@ -221,7 +223,7 @@
 
 // This defines the number of extruders
 // :[0, 1, 2, 3, 4, 5, 6, 7, 8]
-#define EXTRUDERS 1
+#define EXTRUDERS 0
 
 // Generally expected filament diameter (1.75, 2.85, 3.0, ...). Used for Volumetric, Filament Width Sensor, etc.
 #define DEFAULT_NOMINAL_FILAMENT_DIA 1.75
@@ -580,7 +582,7 @@
  *   998 : Dummy Table that ALWAYS reads 25°C or the temperature defined below.
  *   999 : Dummy Table that ALWAYS reads 100°C or the temperature defined below.
  */
-#define TEMP_SENSOR_0 1
+#define TEMP_SENSOR_0 0
 #define TEMP_SENSOR_1 0
 #define TEMP_SENSOR_2 0
 #define TEMP_SENSOR_3 0
@@ -588,7 +590,7 @@
 #define TEMP_SENSOR_5 0
 #define TEMP_SENSOR_6 0
 #define TEMP_SENSOR_7 0
-#define TEMP_SENSOR_BED 1
+#define TEMP_SENSOR_BED 0
 #define TEMP_SENSOR_PROBE 0
 #define TEMP_SENSOR_CHAMBER 0
 #define TEMP_SENSOR_COOLER 0
@@ -656,11 +658,11 @@
 
 // Below this temperature the heater will be switched off
 // because it probably indicates a broken thermistor wire.
-#define HEATER_0_MINTEMP   5
-#define HEATER_1_MINTEMP   5
-#define HEATER_2_MINTEMP   5
-#define HEATER_3_MINTEMP   5
-#define HEATER_4_MINTEMP   5
+#define HEATER_0_MINTEMP 5
+#define HEATER_1_MINTEMP 5
+#define HEATER_2_MINTEMP 5
+#define HEATER_3_MINTEMP 5
+#define HEATER_4_MINTEMP 5
 #define HEATER_5_MINTEMP   5
 #define HEATER_6_MINTEMP   5
 #define HEATER_7_MINTEMP   5
@@ -936,7 +938,7 @@
  *
  * *** IT IS HIGHLY RECOMMENDED TO LEAVE THIS OPTION ENABLED! ***
  */
-#define PREVENT_COLD_EXTRUSION
+//#define PREVENT_COLD_EXTRUSION
 #define EXTRUDE_MINTEMP 170
 
 /**
@@ -963,10 +965,10 @@
  * details can be tuned in Configuration_adv.h
  */
 
-#define THERMAL_PROTECTION_HOTENDS // Enable thermal protection for all extruders
-#define THERMAL_PROTECTION_BED     // Enable thermal protection for the heated bed
-#define THERMAL_PROTECTION_CHAMBER // Enable thermal protection for the heated chamber
-#define THERMAL_PROTECTION_COOLER  // Enable thermal protection for the laser cooling
+//#define THERMAL_PROTECTION_HOTENDS
+//#define THERMAL_PROTECTION_BED
+//#define THERMAL_PROTECTION_CHAMBER
+//#define THERMAL_PROTECTION_COOLER
 
 //===========================================================================
 //============================= Mechanical Settings =========================
@@ -1351,7 +1353,7 @@
  * Override with M92 (when enabled below)
  *                                      X, Y, Z [, I [, J [, K...]]], E0 [, E1[, E2...]]
  */
-#define DEFAULT_AXIS_STEPS_PER_UNIT   { 80, 80, 400, 500 }
+#define DEFAULT_AXIS_STEPS_PER_UNIT   { 8.889, 8.889, 8.889, 8.889, 8.889, 8.889, 8.889, 8.889 }  // 200step × 16microstep / 360° — 1 unit = 1 degree
 
 /**
  * Enable support for M92. Disable to save at least ~530 bytes of flash.
@@ -1363,7 +1365,7 @@
  * Override with M203
  *                                      X, Y, Z [, I [, J [, K...]]], E0 [, E1[, E2...]]
  */
-#define DEFAULT_MAX_FEEDRATE          { 300, 300, 5, 25 }
+#define DEFAULT_MAX_FEEDRATE          { 720, 720, 720, 720, 720, 720, 720, 720 }  // deg/min — 2 rev/s max
 
 //#define LIMITED_MAX_FR_EDITING        // Limit edit via M203 or LCD to DEFAULT_MAX_FEEDRATE * 2
 #if ENABLED(LIMITED_MAX_FR_EDITING)
@@ -1376,7 +1378,7 @@
  * Override with M201
  *                                      X, Y, Z [, I [, J [, K...]]], E0 [, E1[, E2...]]
  */
-#define DEFAULT_MAX_ACCELERATION      { 3000, 3000, 100, 10000 }
+#define DEFAULT_MAX_ACCELERATION      { 360, 360, 360, 360, 360, 360, 360, 360 }  // deg/s² — 1 rev/s² ramp
 
 //#define LIMITED_MAX_ACCEL_EDITING     // Limit edit via M201 or LCD to DEFAULT_MAX_ACCELERATION * 2
 #if ENABLED(LIMITED_MAX_ACCEL_EDITING)
@@ -1391,7 +1393,7 @@
  *   M204 R    Retract Acceleration
  *   M204 T    Travel Acceleration
  */
-#define DEFAULT_ACCELERATION          3000    // X, Y, Z and E acceleration for printing moves
+#define DEFAULT_ACCELERATION          36      // deg/s² — slow ramp, 10 seconds to full speed
 #define DEFAULT_RETRACT_ACCELERATION  3000    // E acceleration for retracts
 #define DEFAULT_TRAVEL_ACCELERATION   3000    // X, Y, Z acceleration for travel (non printing) moves
 
@@ -1445,7 +1447,7 @@
  *
  * See https://github.com/synthetos/TinyG/wiki/Jerk-Controlled-Motion-Explained
  */
-//#define S_CURVE_ACCELERATION
+#define S_CURVE_ACCELERATION
 #if ENABLED(S_CURVE_ACCELERATION)
   // Define to use 4th instead of 6th order motion curve
   //#define S_CURVE_FACTOR 0.25    // Initial and final acceleration factor, ideally 0.1 to 0.4.
@@ -1866,11 +1868,11 @@
 #define Y_ENABLE_ON LOW
 #define Z_ENABLE_ON LOW
 #define E_ENABLE_ON LOW // For all extruders
-//#define I_ENABLE_ON LOW
-//#define J_ENABLE_ON LOW
-//#define K_ENABLE_ON LOW
-//#define U_ENABLE_ON LOW
-//#define V_ENABLE_ON LOW
+#define I_ENABLE_ON LOW
+#define J_ENABLE_ON LOW
+#define K_ENABLE_ON LOW
+#define U_ENABLE_ON LOW
+#define V_ENABLE_ON LOW
 //#define W_ENABLE_ON LOW
 
 // Disable axis steppers immediately when they're not being stepped.
@@ -1896,11 +1898,11 @@
 #define INVERT_X_DIR false
 #define INVERT_Y_DIR true
 #define INVERT_Z_DIR false
-//#define INVERT_I_DIR false
-//#define INVERT_J_DIR false
-//#define INVERT_K_DIR false
-//#define INVERT_U_DIR false
-//#define INVERT_V_DIR false
+#define INVERT_I_DIR false
+#define INVERT_J_DIR false
+#define INVERT_K_DIR false
+#define INVERT_U_DIR false
+#define INVERT_V_DIR false
 //#define INVERT_W_DIR false
 
 // For direct drive extruder v9 set to true, for geared extruder set to false.
@@ -1938,11 +1940,11 @@
 #define X_HOME_DIR -1
 #define Y_HOME_DIR -1
 #define Z_HOME_DIR -1
-//#define I_HOME_DIR -1
-//#define J_HOME_DIR -1
-//#define K_HOME_DIR -1
-//#define U_HOME_DIR -1
-//#define V_HOME_DIR -1
+#define I_HOME_DIR 0
+#define J_HOME_DIR 0
+#define K_HOME_DIR 0
+#define U_HOME_DIR 0
+#define V_HOME_DIR 0
 //#define W_HOME_DIR -1
 
 /**
@@ -1962,27 +1964,28 @@
 
 // @section geometry
 
-// The size of the printable area
-#define X_BED_SIZE 200
-#define Y_BED_SIZE 200
+// Not a printer — no bed size concept
+#define X_BED_SIZE 36000
+#define Y_BED_SIZE 36000
 
-// Travel limits (linear=mm, rotational=°) after homing, corresponding to endstop positions.
-#define X_MIN_POS 0
-#define Y_MIN_POS 0
-#define Z_MIN_POS 0
-#define X_MAX_POS X_BED_SIZE
-#define Y_MAX_POS Y_BED_SIZE
-#define Z_MAX_POS 200
-//#define I_MIN_POS 0
-//#define I_MAX_POS 50
-//#define J_MIN_POS 0
-//#define J_MAX_POS 50
-//#define K_MIN_POS 0
-//#define K_MAX_POS 50
-//#define U_MIN_POS 0
-//#define U_MAX_POS 50
-//#define V_MIN_POS 0
-//#define V_MAX_POS 50
+// Travel limits in degrees — software endstops off, these satisfy the compiler only
+#define X_MIN_POS -36000
+#define Y_MIN_POS -36000
+#define Z_MIN_POS -36000
+#define X_MAX_POS  36000
+#define Y_MAX_POS  36000
+#define Z_MAX_POS  36000
+// ±36000° = 100 full rotations — software endstops are off so these are compiler-only
+#define I_MIN_POS -36000
+#define I_MAX_POS  36000
+#define J_MIN_POS -36000
+#define J_MAX_POS  36000
+#define K_MIN_POS -36000
+#define K_MAX_POS  36000
+#define U_MIN_POS -36000
+#define U_MAX_POS  36000
+#define V_MIN_POS -36000
+#define V_MAX_POS  36000
 //#define W_MIN_POS 0
 //#define W_MAX_POS 50
 
@@ -1995,33 +1998,9 @@
  * - Use 'M211' to set software endstops on/off or report current state
  */
 
-// Min software endstops constrain movement within minimum coordinate bounds
-#define MIN_SOFTWARE_ENDSTOPS
-#if ENABLED(MIN_SOFTWARE_ENDSTOPS)
-  #define MIN_SOFTWARE_ENDSTOP_X
-  #define MIN_SOFTWARE_ENDSTOP_Y
-  #define MIN_SOFTWARE_ENDSTOP_Z
-  #define MIN_SOFTWARE_ENDSTOP_I
-  #define MIN_SOFTWARE_ENDSTOP_J
-  #define MIN_SOFTWARE_ENDSTOP_K
-  #define MIN_SOFTWARE_ENDSTOP_U
-  #define MIN_SOFTWARE_ENDSTOP_V
-  #define MIN_SOFTWARE_ENDSTOP_W
-#endif
-
-// Max software endstops constrain movement within maximum coordinate bounds
-#define MAX_SOFTWARE_ENDSTOPS
-#if ENABLED(MAX_SOFTWARE_ENDSTOPS)
-  #define MAX_SOFTWARE_ENDSTOP_X
-  #define MAX_SOFTWARE_ENDSTOP_Y
-  #define MAX_SOFTWARE_ENDSTOP_Z
-  #define MAX_SOFTWARE_ENDSTOP_I
-  #define MAX_SOFTWARE_ENDSTOP_J
-  #define MAX_SOFTWARE_ENDSTOP_K
-  #define MAX_SOFTWARE_ENDSTOP_U
-  #define MAX_SOFTWARE_ENDSTOP_V
-  #define MAX_SOFTWARE_ENDSTOP_W
-#endif
+// No physical endstops — disable software limits for unrestricted rotation
+//#define MIN_SOFTWARE_ENDSTOPS
+//#define MAX_SOFTWARE_ENDSTOPS
 
 #if ANY(MIN_SOFTWARE_ENDSTOPS, MAX_SOFTWARE_ENDSTOPS)
   //#define SOFT_ENDSTOPS_MENU_ITEM  // Enable/Disable software endstops from the LCD
@@ -2433,13 +2412,13 @@
 #endif
 
 // Homing speeds (linear=mm/min, rotational=°/min)
-#define HOMING_FEEDRATE_MM_M { (50*60), (50*60), (4*60) }
+#define HOMING_FEEDRATE_MM_M { (50*60), (50*60), (4*60), (50*60), (50*60), (50*60), (50*60), (50*60) }
 
 // Edit homing feedrates with M210 and MarlinUI menu items
 //#define EDITABLE_HOMING_FEEDRATE
 
 // Validate that endstops are triggered on homing moves
-#define VALIDATE_HOMING_ENDSTOPS
+//#define VALIDATE_HOMING_ENDSTOPS
 
 // @section calibrate
 
@@ -2759,7 +2738,7 @@
  * SD Card support is disabled by default. If your controller has an SD slot,
  * you must uncomment the following option or it won't work.
  */
-//#define SDSUPPORT
+#define SDSUPPORT
 
 /**
  * SD CARD: ENABLE CRC
