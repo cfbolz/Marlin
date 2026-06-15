@@ -11,6 +11,17 @@ G1 line per tick, at a constant feedrate.
 The day is divided into alternating action and break periods. During a
 break, all axes park at 0 and the file dwells for the break length.
 
+Each action period is split into --num-blocks equal-length blocks. Every
+block's random walk starts and ends at 0 (the parked position), with the
+same content across all boards for a given --seed. The order of blocks
+within an action period is shuffled per board using --permutation-seed.
+Since every block takes the same wall-clock time to execute regardless of
+order (each starts and ends at rest at 0), all boards finish an action
+period at approximately the same time, even though Marlin's actual
+execution time for a block of G-code is not known in advance and varies
+with travel distance. This keeps independently-running boards' breaks
+roughly aligned without any inter-board communication.
+
 Units are degrees of motor/drum rotation (matching the firmware
 configuration, where 1 unit = 1 degree). 360 degrees = 1 full drum
 rotation. Bounds and leg distances below are derived from a nominal 1cm
@@ -43,30 +54,44 @@ TICK_SECONDS = 1.0
 
 # Constant feedrate (deg/min) used for every G1 move.
 FEEDRATE = 1200.0 * MM_TO_DEG
-PARK_FEEDRATE = 1200.0 * MM_TO_DEG
 
 
 class AxisWalk:
-    """Independent random-walk state for a single axis."""
+    """Independent random-walk state for a single axis.
 
-    def __init__(self, rng, start=0.0):
+    Generates a fixed number of ticks, starting and ending at 0: legs are
+    picked normally until too few ticks remain to safely fit another leg
+    plus the final return-to-0 leg, at which point a single leg back to 0
+    is used to fill the remaining ticks.
+    """
+
+    def __init__(self, rng, total_ticks, start=0.0):
         self.pos = start
         self.rng = rng
         self.target = start
         self.step = 0.0
         self.ticks_remaining = 0
+        self.total_ticks_remaining = total_ticks
 
     def _start_new_leg(self):
-        distance = self.rng.uniform(LEG_MIN_DISTANCE, LEG_MAX_DISTANCE)
-        direction = self.rng.choice((-1.0, 1.0))
-        target = self.pos + direction * distance
-        if target < MIN_POS or target > MAX_POS:
-            # Out of bounds: flip direction instead of clamping to a
-            # zero-length leg that would leave the axis motionless.
-            target = self.pos - direction * distance
-        target = min(max(target, MIN_POS), MAX_POS)
+        # Leave enough ticks for at least one more leg after this one,
+        # unless we're already down to the final return-to-0 leg.
+        if self.total_ticks_remaining <= LEG_MAX_TICKS:
+            target = 0.0
+            ticks = self.total_ticks_remaining
+        else:
+            distance = self.rng.uniform(LEG_MIN_DISTANCE, LEG_MAX_DISTANCE)
+            direction = self.rng.choice((-1.0, 1.0))
+            target = self.pos + direction * distance
+            if target < MIN_POS or target > MAX_POS:
+                # Out of bounds: flip direction instead of clamping to a
+                # zero-length leg that would leave the axis motionless.
+                target = self.pos - direction * distance
+            target = min(max(target, MIN_POS), MAX_POS)
 
-        ticks = self.rng.randint(LEG_MIN_TICKS, LEG_MAX_TICKS)
+            max_ticks = min(LEG_MAX_TICKS, self.total_ticks_remaining - 1)
+            ticks = self.rng.randint(LEG_MIN_TICKS, max_ticks)
+
         self.target = target
         self.step = (target - self.pos) / ticks
         self.ticks_remaining = ticks
@@ -78,6 +103,7 @@ class AxisWalk:
             self._start_new_leg()
 
         self.ticks_remaining -= 1
+        self.total_ticks_remaining -= 1
         if self.ticks_remaining == 0:
             # Land exactly on the leg target to avoid drift from
             # accumulated floating-point steps.
@@ -92,9 +118,35 @@ def format_axis_values(values):
     return " ".join(f"{axis}{value:.2f}" for axis, value in zip(AXES, values))
 
 
-def generate(total_seconds, action_length, break_length, seed):
-    rng = random.Random(seed)
-    walks = [AxisWalk(rng) for _ in AXES]
+def generate_block(block_ticks, block_seed):
+    """Generate one block: block_ticks ticks of G1 lines, all axes starting
+    and ending at 0. Returns (lines, deltas, new_leg_markers), where deltas
+    is a list of per-tick [positions...] (length block_ticks, not including
+    the starting 0) and new_leg_markers is a list of (tick_index, axis_index,
+    position) for ticks where that axis started a new leg."""
+    rng = random.Random(block_seed)
+    walks = [AxisWalk(rng, block_ticks) for _ in AXES]
+
+    lines = []
+    deltas = []
+    new_leg_markers = []
+
+    for tick in range(block_ticks):
+        results = [w.tick() for w in walks]
+        positions = [pos for pos, _ in results]
+        lines.append(f"G1 {format_axis_values(positions)} F{FEEDRATE:.0f}")
+        deltas.append(positions)
+        for i, (pos, new_leg) in enumerate(results):
+            if new_leg:
+                new_leg_markers.append((tick, i, pos))
+
+    return lines, deltas, new_leg_markers
+
+
+def generate(total_seconds, action_length, break_length, seed, num_blocks, permutation_seed, extra_sleep=0.0):
+    block_ticks = max(1, round(action_length / num_blocks / TICK_SECONDS))
+
+    perm_rng = random.Random(permutation_seed)
 
     lines = []
     lines.append("G90")
@@ -104,39 +156,74 @@ def generate(total_seconds, action_length, break_length, seed):
     new_leg_markers = []  # list of (time, axis_index, position)
 
     elapsed = 0.0
+    action_period = 0
     while elapsed < total_seconds:
-        # Action period.
-        action_end = min(elapsed + action_length, total_seconds)
-        while elapsed < action_end:
-            results = [w.tick() for w in walks]
-            positions = [pos for pos, _ in results]
-            lines.append(f"G1 {format_axis_values(positions)} F{FEEDRATE:.0f}")
-            elapsed += TICK_SECONDS
-            samples.append((elapsed, positions))
-            for i, (pos, new_leg) in enumerate(results):
-                if new_leg:
-                    new_leg_markers.append((elapsed, i, pos))
+        # Action period: generate num_blocks fresh blocks (same content on
+        # every board, derived from --seed and the action period index),
+        # then play them in a per-board, per-action-period shuffled order.
+        # Every block starts and ends at 0, so the total wall-clock time
+        # for the action period does not depend on the order, keeping
+        # independently-running boards' breaks aligned.
+        blocks = [generate_block(block_ticks, f"{seed}-{action_period}-{i}") for i in range(num_blocks)]
+
+        # The first block of each action period is the one most likely to
+        # visually align across boards, since all boards start it right
+        # after a synchronized break. Pick it deterministically from
+        # permutation_seed so that boards with different permutation seeds
+        # are spread across different first blocks, then shuffle the rest.
+        first = permutation_seed % num_blocks
+        rest = [i for i in range(num_blocks) if i != first]
+        perm_rng.shuffle(rest)
+        order = [first] + rest
+        assert set(order) == set(range(num_blocks))
+
+        # Split --extra-sleep between the start and end of the action
+        # period, so even boards whose first block is identical don't
+        # start moving at exactly the same moment. The split is random per
+        # board (perm_rng), but the total is the same for every board, so
+        # it doesn't affect the alignment of breaks across boards.
+        sleep_before = perm_rng.uniform(0.0, extra_sleep)
+        sleep_after = extra_sleep - sleep_before
+
+        lines.append(f"; --- action period {action_period}, block order {order}, "
+                      f"extra sleep {sleep_before:.1f}s/{sleep_after:.1f}s ---")
+        if sleep_before:
+            lines.append("M400")
+            lines.append(f"G4 S{sleep_before:.1f}")
+            elapsed += sleep_before
+            samples.append((elapsed, [0.0] * len(AXES)))
+
+        for block_index in order:
+            block_lines, block_deltas, block_new_legs = blocks[block_index]
+            lines.append(f"; block {block_index} start")
+            lines.extend(block_lines)
+            for tick, positions in enumerate(block_deltas):
+                elapsed += TICK_SECONDS
+                samples.append((elapsed, positions))
+            for tick, axis_i, pos in block_new_legs:
+                new_leg_markers.append((elapsed - len(block_deltas) + tick + 1, axis_i, pos))
+            lines.append(f"; block {block_index} end")
+
+        if sleep_after:
+            lines.append("M400")
+            lines.append(f"G4 S{sleep_after:.1f}")
+            elapsed += sleep_after
+            samples.append((elapsed, [0.0] * len(AXES)))
 
         if elapsed >= total_seconds:
             break
 
-        # Break period: park all axes and dwell.
-        lines.append(f"G1 {format_axis_values([0.0] * len(AXES))} F{PARK_FEEDRATE:.0f}")
+        # Break period: all axes are already at 0 (parked) after the last
+        # block's forced return-to-0 leg. Wait for that move to finish,
+        # then dwell.
+        lines.append(f"; --- break {action_period} ---")
         lines.append("M400")
         lines.append(f"G4 S{break_length:.0f}")
 
-        # The park move takes some time at PARK_FEEDRATE; the rest of the
-        # break is spent dwelling at the parked (zero) position.
-        max_delta = max(abs(w.pos) for w in walks)
-        park_seconds = min(max_delta / (PARK_FEEDRATE / 60.0), break_length)
+        elapsed += break_length
+        samples.append((elapsed, [0.0] * len(AXES)))
 
-        for w in walks:
-            w.pos = 0.0
-            w.ticks_remaining = 0
-        elapsed += park_seconds
-        samples.append((elapsed, [0.0] * len(AXES)))
-        elapsed += break_length - park_seconds
-        samples.append((elapsed, [0.0] * len(AXES)))
+        action_period += 1
 
     return lines, samples, new_leg_markers
 
@@ -165,7 +252,24 @@ def main():
     parser.add_argument("--break-length", default="5m",
                          help="duration of each parked break (default: 5m)")
     parser.add_argument("--seed", type=int, default=0,
-                         help="random seed for reproducibility (default: 0)")
+                         help="random seed for the block contents, shared "
+                              "across all boards (default: 0)")
+    parser.add_argument("--num-blocks", type=int, default=6,
+                         help="number of equal-length blocks per action "
+                              "period; each block starts and ends parked "
+                              "at 0, and blocks are shuffled per action "
+                              "period (default: 6)")
+    parser.add_argument("--permutation-seed", type=int, default=0,
+                         help="random seed for shuffling block order; use "
+                              "a different value per board so boards look "
+                              "different while staying time-aligned "
+                              "(default: 0)")
+    parser.add_argument("--extra-sleep", type=parse_duration, default="0s",
+                         help="extra dwell time per action period, randomly "
+                              "split between the start and end (split chosen "
+                              "per board via --permutation-seed), so boards "
+                              "with the same first block don't move in exact "
+                              "lockstep (default: 0s)")
     parser.add_argument("--plot", metavar="FILE",
                          help="write a plot of axis position vs. time to FILE "
                               "(e.g. plot.png) instead of showing it interactively "
@@ -185,7 +289,9 @@ def main():
     action_length = parse_duration(args.action_length)
     break_length = parse_duration(args.break_length)
 
-    lines, samples, new_leg_markers = generate(total_seconds, action_length, break_length, args.seed)
+    lines, samples, new_leg_markers = generate(total_seconds, action_length, break_length,
+                                                args.seed, args.num_blocks, args.permutation_seed,
+                                                args.extra_sleep)
 
     with open(args.output, "w") as f:
         for line in lines:
