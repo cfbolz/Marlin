@@ -2,14 +2,20 @@
 """Generate a daily auto0.g G-code payload for the eight-winch artwork.
 
 Each of the eight axes (X Y Z A B C U V) runs an independent random walk:
-the axis picks a random leg (a target distance to travel and a duration,
+the axis picks a random leg (a target angle to travel and a duration,
 in ticks, over which to travel it), steps toward that target one tick at a
-time, clamped to the configured cable-length bounds, and picks a new leg
+time, clamped to the configured rotation bounds, and picks a new leg
 when the current one finishes. All eight axes are emitted together as one
 G1 line per tick, at a constant feedrate.
 
 The day is divided into alternating action and break periods. During a
 break, all axes park at 0 and the file dwells for the break length.
+
+Units are degrees of motor/drum rotation (matching the firmware
+configuration, where 1 unit = 1 degree). 360 degrees = 1 full drum
+rotation. Bounds and leg distances below are derived from a nominal 1cm
+drum diameter (~31.4mm of cable per rotation) and are placeholders until
+the hardware team measures real endstop limits.
 """
 
 import argparse
@@ -17,21 +23,27 @@ import random
 
 AXES = "XYZABCUV"
 
-# Cable length bounds, in mm, shared by all axes.
+# Nominal conversion factor from mm of cable to degrees of drum rotation,
+# based on a 1cm drum diameter (circumference = pi * 10mm). This is only
+# used to derive the placeholder constants below; the generator itself
+# operates entirely in degrees.
+MM_TO_DEG = 360.0 / (3.141592653589793 * 10.0)
+
+# Drum rotation bounds, in degrees, shared by all axes.
 MIN_POS = 0.0
-MAX_POS = 1500.0
+MAX_POS = 1500.0 * MM_TO_DEG  # ~17189 deg, ~47.7 rotations
 
 # Random-walk leg parameters.
-LEG_MIN_DISTANCE = 100.0   # mm
-LEG_MAX_DISTANCE = 1000.0  # mm
+LEG_MIN_DISTANCE = 100.0 * MM_TO_DEG   # deg, ~1146 deg
+LEG_MAX_DISTANCE = 1000.0 * MM_TO_DEG  # deg, ~11459 deg
 LEG_MIN_TICKS = 5
 LEG_MAX_TICKS = 30
 
 TICK_SECONDS = 1.0
 
-# Constant feedrate (mm/min) used for every G1 move.
-FEEDRATE = 1200.0
-PARK_FEEDRATE = 1200.0
+# Constant feedrate (deg/min) used for every G1 move.
+FEEDRATE = 1200.0 * MM_TO_DEG
+PARK_FEEDRATE = 1200.0 * MM_TO_DEG
 
 
 class AxisWalk:
@@ -158,6 +170,15 @@ def main():
                          help="write a plot of axis position vs. time to FILE "
                               "(e.g. plot.png) instead of showing it interactively "
                               "if FILE is '-'")
+    parser.add_argument("--video", metavar="FILE",
+                         help="write an animation of winch bar heights vs. time "
+                              "to FILE (e.g. preview.mp4)")
+    parser.add_argument("--video-speedup", type=float, default=60.0,
+                         help="how much faster than real time the video plays "
+                              "(default: 60, i.e. 1 minute of motion per second "
+                              "of video)")
+    parser.add_argument("--video-fps", type=float, default=24.0,
+                         help="frames per second for --video (default: 24)")
     args = parser.parse_args()
 
     total_seconds = parse_duration(args.total_length)
@@ -174,6 +195,9 @@ def main():
 
     if args.plot:
         plot_samples(samples, new_leg_markers, args.plot)
+
+    if args.video:
+        render_video(samples, args.video, args.video_speedup, args.video_fps)
 
 
 def plot_samples(samples, new_leg_markers, plot_target):
@@ -193,7 +217,7 @@ def plot_samples(samples, new_leg_markers, plot_target):
         #ax.scatter(marker_times, marker_positions, color=line.get_color(), s=20, zorder=3)
 
     ax.set_xlabel("time (s)")
-    ax.set_ylabel("position (mm)")
+    ax.set_ylabel("position (deg)")
     ax.set_title("Winch axis position vs. time")
     ax.legend()
     ax.grid(True, alpha=0.3)
@@ -204,6 +228,50 @@ def plot_samples(samples, new_leg_markers, plot_target):
     else:
         fig.savefig(plot_target)
         print(f"wrote plot to {plot_target}")
+
+
+def render_video(samples, video_target, speedup, fps):
+    import numpy as np
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.animation as animation
+
+    times = np.array([t for t, _ in samples])
+    positions = np.array([pos for _, pos in samples])  # shape (n_samples, len(AXES))
+
+    total_seconds = times[-1]
+    video_seconds = total_seconds / speedup
+    n_frames = max(1, int(video_seconds * fps))
+    frame_times = np.linspace(0.0, total_seconds, n_frames)
+
+    # Linearly interpolate each axis's position at each frame time.
+    frame_positions = np.empty((n_frames, len(AXES)))
+    for i in range(len(AXES)):
+        frame_positions[:, i] = np.interp(frame_times, times, positions[:, i])
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    x = np.arange(len(AXES))
+    bars = ax.bar(x, frame_positions[0], color="tab:blue")
+    ax.set_xticks(x)
+    ax.set_xticklabels(AXES)
+    ax.set_ylim(MIN_POS, MAX_POS)
+    ax.set_ylabel("position (deg)")
+    title = ax.set_title("")
+
+    def update(frame_i):
+        for bar, height in zip(bars, frame_positions[frame_i]):
+            bar.set_height(height)
+        title.set_text(f"t = {frame_times[frame_i]:.0f}s")
+        return list(bars) + [title]
+
+    def progress(current_frame, total_frames):
+        print(f"\rwriting video: frame {current_frame + 1}/{total_frames}", end="", flush=True)
+
+    anim = animation.FuncAnimation(fig, update, frames=n_frames, blit=False)
+    writer = animation.FFMpegWriter(fps=fps)
+    anim.save(video_target, writer=writer, progress_callback=progress)
+    print(f"\nwrote video to {video_target}")
 
 
 if __name__ == "__main__":
