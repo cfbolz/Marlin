@@ -227,6 +227,14 @@ def generate(total_seconds, action_length, break_length, seed, num_blocks, permu
 
         action_period += 1
 
+    # End of day: all axes are parked at 0 after the last block's forced
+    # return-to-0 leg. Wait for that move to finish and disable steppers,
+    # so the installation ends the day powered down rather than holding
+    # position.
+    lines.append("; --- end of day ---")
+    lines.append("M400")
+    lines.append("M18")
+
     return lines, samples, new_leg_markers
 
 
