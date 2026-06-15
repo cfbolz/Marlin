@@ -42,11 +42,11 @@ MM_TO_DEG = 360.0 / (3.141592653589793 * 10.0)
 
 # Drum rotation bounds, in degrees, shared by all axes.
 MIN_POS = 0.0
-MAX_POS = 1000.0 * MM_TO_DEG  # ~17189 deg, ~47.7 rotations
+MAX_POS = 700.0 * MM_TO_DEG  # ~17189 deg, ~47.7 rotations
 
 # Random-walk leg parameters.
 LEG_MIN_DISTANCE = 100.0 * MM_TO_DEG   # deg, ~1146 deg
-LEG_MAX_DISTANCE = 500.0 * MM_TO_DEG   # deg, ~11459 deg
+LEG_MAX_DISTANCE = 400.0 * MM_TO_DEG   # deg, ~11459 deg
 LEG_MIN_TICKS = 5
 LEG_MAX_TICKS = 30
 
@@ -89,7 +89,9 @@ class AxisWalk:
                 target = self.pos - direction * distance
             target = min(max(target, MIN_POS), MAX_POS)
 
-            max_ticks = min(LEG_MAX_TICKS, self.total_ticks_remaining - 1)
+            # Leave at least LEG_MIN_TICKS remaining for the final
+            # return-to-0 leg, so its step size stays bounded too.
+            max_ticks = min(LEG_MAX_TICKS, self.total_ticks_remaining - LEG_MIN_TICKS)
             ticks = self.rng.randint(LEG_MIN_TICKS, max_ticks)
 
         self.target = target
@@ -323,20 +325,36 @@ def plot_samples(samples, new_leg_markers, plot_target):
     import matplotlib.pyplot as plt
 
     times = [t for t, _ in samples]
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, (ax_pos, ax_speed) = plt.subplots(2, 1, figsize=(12, 12), sharex=True)
     for i, axis in enumerate(AXES):
         positions = [pos[i] for _, pos in samples]
-        line, = ax.plot(times, positions, label=axis)
+        line, = ax_pos.plot(times, positions, label=axis)
 
         marker_times = [t for t, axis_i, _ in new_leg_markers if axis_i == i]
         marker_positions = [pos for _, axis_i, pos in new_leg_markers if axis_i == i]
-        #ax.scatter(marker_times, marker_positions, color=line.get_color(), s=20, zorder=3)
+        #ax_pos.scatter(marker_times, marker_positions, color=line.get_color(), s=20, zorder=3)
 
-    ax.set_xlabel("time (s)")
-    ax.set_ylabel("position (deg)")
-    ax.set_title("Winch axis position vs. time")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+        speed_times = []
+        speeds = []
+        for (t0, p0), (t1, p1) in zip(samples, samples[1:]):
+            dt = t1 - t0
+            if dt <= 0:
+                continue
+            speed_times.append((t0 + t1) / 2.0)
+            speeds.append((p1[i] - p0[i]) / dt)
+        ax_speed.plot(speed_times, speeds, label=axis, color=line.get_color())
+
+    ax_pos.set_ylabel("position (deg)")
+    ax_pos.set_title("Winch axis position vs. time")
+    ax_pos.legend()
+    ax_pos.grid(True, alpha=0.3)
+
+    ax_speed.set_xlabel("time (s)")
+    ax_speed.set_ylabel("speed (deg/s)")
+    ax_speed.set_title("Winch axis speed vs. time")
+    ax_speed.legend()
+    ax_speed.grid(True, alpha=0.3)
+
     fig.tight_layout()
 
     if plot_target == "-":
