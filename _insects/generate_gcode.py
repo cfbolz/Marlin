@@ -143,6 +143,21 @@ def generate_block(block_ticks, block_seed):
     return lines, deltas, new_leg_markers
 
 
+def emit_sleep(lines, samples, elapsed, sleep_seconds):
+    """Append a parked dwell of sleep_seconds to lines/samples. M400 waits
+    for any queued moves to actually finish before continuing, M18 then
+    disables all stepper drivers for the dwell; the next G1 re-enables them
+    automatically. Returns the new elapsed time."""
+    if not sleep_seconds:
+        return elapsed
+    lines.append("M400")
+    lines.append("M18")
+    lines.append(f"G4 S{sleep_seconds:.1f}")
+    elapsed += sleep_seconds
+    samples.append((elapsed, [0.0] * len(AXES)))
+    return elapsed
+
+
 def generate(total_seconds, action_length, break_length, seed, num_blocks, permutation_seed, extra_sleep=0.0):
     block_ticks = max(1, round(action_length / num_blocks / TICK_SECONDS))
 
@@ -187,11 +202,7 @@ def generate(total_seconds, action_length, break_length, seed, num_blocks, permu
 
         lines.append(f"; --- action period {action_period}, block order {order}, "
                       f"extra sleep {sleep_before:.1f}s/{sleep_after:.1f}s ---")
-        if sleep_before:
-            lines.append("M400")
-            lines.append(f"G4 S{sleep_before:.1f}")
-            elapsed += sleep_before
-            samples.append((elapsed, [0.0] * len(AXES)))
+        elapsed = emit_sleep(lines, samples, elapsed, sleep_before)
 
         for block_index in order:
             block_lines, block_deltas, block_new_legs = blocks[block_index]
@@ -204,24 +215,15 @@ def generate(total_seconds, action_length, break_length, seed, num_blocks, permu
                 new_leg_markers.append((elapsed - len(block_deltas) + tick + 1, axis_i, pos))
             lines.append(f"; block {block_index} end")
 
-        if sleep_after:
-            lines.append("M400")
-            lines.append(f"G4 S{sleep_after:.1f}")
-            elapsed += sleep_after
-            samples.append((elapsed, [0.0] * len(AXES)))
+        elapsed = emit_sleep(lines, samples, elapsed, sleep_after)
 
         if elapsed >= total_seconds:
             break
 
         # Break period: all axes are already at 0 (parked) after the last
-        # block's forced return-to-0 leg. Wait for that move to finish,
-        # then dwell.
+        # block's forced return-to-0 leg.
         lines.append(f"; --- break {action_period} ---")
-        lines.append("M400")
-        lines.append(f"G4 S{break_length:.0f}")
-
-        elapsed += break_length
-        samples.append((elapsed, [0.0] * len(AXES)))
+        elapsed = emit_sleep(lines, samples, elapsed, break_length)
 
         action_period += 1
 
