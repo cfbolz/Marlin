@@ -31,18 +31,18 @@ MM_TO_DEG = 360.0 / (3.141592653589793 * 10.0)
 
 # Drum rotation bounds, in degrees, shared by all axes.
 MIN_POS = 0.0
-MAX_POS = 1500.0 * MM_TO_DEG  # ~17189 deg, ~47.7 rotations
+MAX_POS = 1000.0 * MM_TO_DEG  # ~17189 deg, ~47.7 rotations
 
 # Random-walk leg parameters.
 LEG_MIN_DISTANCE = 100.0 * MM_TO_DEG   # deg, ~1146 deg
-LEG_MAX_DISTANCE = 1000.0 * MM_TO_DEG  # deg, ~11459 deg
+LEG_MAX_DISTANCE = 500.0 * MM_TO_DEG   # deg, ~11459 deg
 LEG_MIN_TICKS = 5
 LEG_MAX_TICKS = 30
 
 TICK_SECONDS = 1.0
 
 # Constant feedrate (deg/min) used for every G1 move.
-FEEDRATE = 1200.0 * MM_TO_DEG
+FEEDRATE = 3200.0 * MM_TO_DEG
 PARK_FEEDRATE = 1200.0 * MM_TO_DEG
 
 
